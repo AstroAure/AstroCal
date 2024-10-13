@@ -19,7 +19,10 @@ from photutils.detection import DAOStarFinder
 from sklearn import linear_model
 
 def pixel_scale(hdu):
-    pxscale = ((proj_plane_pixel_scales(WCS(hdu.header))[0]*u.deg).to(u.arcsec))
+    if proj_plane_pixel_scales(WCS(hdu.header))[0] != 1:
+        pxscale = ((proj_plane_pixel_scales(WCS(hdu.header))[0]*u.deg).to(u.arcsec)) # Correct WCS
+    else:
+        pxscale = ((hdu.header['XPIXSZ']*u.um)/(hdu.header['FOCALLEN']*u.mm)).to(u.arcsec, equivalencies=u.dimensionless_angles()) # NINA
     hdu.header['PXSCALE'] = pxscale.value
     return pxscale
 
@@ -40,17 +43,25 @@ def find_sources(hdu, mask=False, fwhm=None, threshold=7, plot=False):
     sources.reverse()
     # Add RA/DEC (if WCS present in header)
     try:
+        is_wcs = True
         wcs = WCS(hdu.header)
         sources_radec = pixel_to_skycoord(sources['xcentroid'], sources['ycentroid'], wcs)
         sources.add_columns([sources_radec.ra, sources_radec.dec], indexes=[1,1], names=['ra', 'dec'])
     except:
+        is_wcs = False
         pass
     # Plot
     if plot:
-        fig, ax = plt.subplots(1,1,figsize=(12,12), subplot_kw={'projection':WCS(hdu.header)})
+        if is_wcs:
+            fig, ax = plt.subplots(1,1,figsize=(12,12), subplot_kw={'projection':WCS(hdu.header)})
+        else:
+            fig, ax = plt.subplots(1,1,figsize=(12,12))
         norm = ImageNormalize(hdu.data, interval=ZScaleInterval())
         ax.imshow(hdu.data, cmap='gray', origin='lower', norm=norm)
-        ax.scatter(sources['ra'], sources['dec'], transform=ax.get_transform('world'), s=50, edgecolor='yellow', facecolor='none')
+        if is_wcs:
+            ax.scatter(sources['ra'], sources['dec'], transform=ax.get_transform('world'), s=50, edgecolor='yellow', facecolor='none', alpha=0.3)
+        else:
+            ax.scatter(sources['xcentroid'], sources['ycentroid'], s=50, edgecolor='yellow', facecolor='none', alpha=0.3)
         plt.show()
     return sources
 
@@ -80,13 +91,13 @@ def fwhm_estimate(hdu, sources, n_src=50, src_siz=51, angle=False, plot=False, v
         for x_sum in X_SUM:
             ax.plot(x_arr, x_sum, c='gray', alpha=0.2)
         ax.plot(x_arr, x_med, c='k')
-        ax.plot(x_arr, gaus(x_arr, param[0], param[1], param[2]), c='red', ls=':')
+        ax.plot(x_arr, gaus(x_arr, param[0], param[1], param[2]), c='red', ls=':', label=f"FWHM : {fwhm:.2f}px")
         ax.set_ylim(-0.5, 1.2)
+        ax.legend()
         plt.show()
     if angle:
-        wcs = WCS(hdu.header)
-        pxscale = proj_plane_pixel_scales(wcs)[0]
-        fwhm = (fwhm*pxscale*u.deg).to(u.arcsec)
+        pxscale = pixel_scale(hdu)
+        fwhm = (fwhm*pxscale).to(u.arcsec)
         if verbose: print(f"FWHM : {fwhm:.2f}\"")
         hdu.header['FWHM'] = fwhm.value
     else:
@@ -204,6 +215,8 @@ def ZP_ransac(table, mag_bounds=(10,18), plot=False, verbose=False):
         ax.scatter(table['ins_mag'], table['cat_mag'], marker='+', c='k')
         min_max = np.array([np.min(table['ins_mag']), np.max(table['ins_mag'])])
         ax.plot(min_max, ransac.predict(min_max.reshape(-1,1)).flatten(), color='r', ls='--')
+        ax.set_xlabel('$mag_{ins}$')
+        ax.set_ylabel('$mag_{cat}$')
         ax.set_aspect('equal')
         plt.show()
     return ransac

@@ -23,11 +23,12 @@ dependencies = [
     "photutils",
     "reproject",
     "scikit-learn",
-    "scipy>=1.12.0"
+    "scipy>=1.12.0",
+    "Pillow>=10.4.0",
 ]
 
 [project.urls]
-Source = ""
+Source = "https://github.com/AstroAure/AstroCal"
 
 [tool.setuptools.packages.find]
 where = ["src"]

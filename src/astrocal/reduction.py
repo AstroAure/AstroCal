@@ -7,7 +7,7 @@ from astropy.io import fits
 
 def reduce_one(image_path,
                master_dark,
-               master_flat,
+               master_flat=1,
                mask=False,
                verbose=False):
     # Science image reduction
@@ -20,7 +20,7 @@ def reduce_one(image_path,
 def reduce(generic_filename, 
            savedir,
            master_dark_name,
-           master_flat_name,
+           master_flat_name=None,
            mask_name=[],
            every_X=1, 
            first=None, 
@@ -31,7 +31,10 @@ def reduce(generic_filename,
     if verbose: print("Loading master dark")
     master_dark = fits.open(master_dark_name, memmap=False)[0].data
     if verbose: print("Loading master flat")
-    master_flat = fits.open(master_flat_name, memmap=False)[0].data
+    if master_flat_name is None:
+        master_flat = 1
+    else:
+        master_flat = fits.open(master_flat_name, memmap=False)[0].data
     if verbose: print("Loading mask(s)")
     mask = False
     for name in mask_name:
